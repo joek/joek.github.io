@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>iframe postMessage Tester</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      background-color: #f4f5f7;
+      color: #172b4d;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 1.5rem;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .panel {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    label {
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #5e6c84;
+    }
+    input[type="text"], textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #dfe1e6;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: #0052cc;
+      box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.2);
+    }
+    button {
+      background-color: #0052cc;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #0065ff;
+    }
+    iframe {
+      width: 100%;
+      height: 320px;
+      border: 2px dashed #dfe1e6;
+      border-radius: 4px;
+      background: #fafbfc;
+    }
+    .logs {
+      background: #091e42;
+      color: #4c9aff;
+      font-family: monospace;
+      padding: 12px;
+      border-radius: 4px;
+      height: 150px;
+      overflow-y: auto;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+    }
+    .log-entry {
+      margin-bottom: 6px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>iframe postMessage Tester</h1>
+
+  <div class="container">
+    <!-- Controls Panel -->
+    <div class="panel">
+      <div>
+        <label for="iframeUrl">iframe Source URL</label>
+        <input type="text" id="iframeUrl" value="about:blank" placeholder="e.g. https://example.com or relative path" />
+      </div>
+
+      <div>
+        <label for="targetOrigin">Target Origin</label>
+        <input type="text" id="targetOrigin" value="*" placeholder="*" />
+      </div>
+
+      <div>
+        <label for="messageInput">Message Payload (String or JSON)</label>
+        <textarea id="messageInput" placeholder='{"type": "INIT", "data": "hello"}'>{"type": "GREETING", "payload": "Hello from parent!"}</textarea>
+      </div>
+
+      <button id="sendBtn">Send postMessage</button>
+
+      <label>Received Replies from iframe</label>
+      <div id="logs" class="logs">Waiting for messages...</div>
+    </div>
+
+    <!-- Preview Panel -->
+    <div class="panel">
+      <label>Embedded iframe Preview</label>
+      <iframe id="targetIframe"></iframe>
+      <button id="loadUrlBtn" style="background-color: #42526e;">Reload / Load URL</button>
+    </div>
+  </div>
+
+  <script>
+    const iframe = document.getElementById('targetIframe');
+    const iframeUrlInput = document.getElementById('iframeUrl');
+    const targetOriginInput = document.getElementById('targetOrigin');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const loadUrlBtn = document.getElementById('loadUrlBtn');
+    const logsContainer = document.getElementById('logs');
+
+    // Default mock child document when using about:blank
+    const defaultMockChildHTML = `
+      <!DOCTYPE html>
+      <html>
+      <body style="font-family: sans-serif; padding: 20px; background: #f0f4f8;">
+        <h3>Mock Child iframe</h3>
+        <p>Receives postMessages and displays them below:</p>
+        <div id="received" style="font-family: monospace; background: #fff; padding: 10px; border: 1px solid #ccc; min-height: 50px;">
+          (No message received yet)
+        </div>
+        <script>
+          window.addEventListener('message', (event) => {
+            const display = document.getElementById('received');
+            const dataStr = typeof event.data === 'object' ? JSON.stringify(event.data, null, 2) : event.data;
+            display.innerText = dataStr;
+
+            // Send acknowledgment back to parent
+            event.source.postMessage({ status: 'received', echoed: event.data }, event.origin || '*');
+          });
+        <\/script>
+      </body>
+      </html>
+    `;
+
+    function loadIframe() {
+      const url = iframeUrlInput.value.trim();
+      if (url === 'about:blank' || url === '') {
+        iframe.srcdoc = defaultMockChildHTML;
+      } else {
+        iframe.removeAttribute('srcdoc');
+        iframe.src = url;
+      }
+    }
+
+    // Initial load
+    loadIframe();
+
+    loadUrlBtn.addEventListener('click', loadIframe);
+
+    // Send Message
+    sendBtn.addEventListener('click', () => {
+      if (!iframe.contentWindow) {
+        alert('iframe target is not available.');
+        return;
+      }
+
+      const rawText = messageInput.value.trim();
+      const targetOrigin = targetOriginInput.value.trim() || '*';
+      let payload = rawText;
+
+      // Automatically parse JSON if the input is a valid JSON string
+      try {
+        payload = JSON.parse(rawText);
+      } catch (e) {
+        // Keep as raw string if not JSON
+      }
+
+      iframe.contentWindow.postMessage(payload, targetOrigin);
+      logToConsole(`[Sent]: ${typeof payload === 'object' ? JSON.stringify(payload) : payload}`);
+    });
+
+    // Listen for incoming responses from the iframe
+    window.addEventListener('message', (event) => {
+      // Ignore internal messages (e.g. browser extension communications)
+      if (event.source !== iframe.contentWindow) return;
+
+      const dataStr = typeof event.data === 'object' ? JSON.stringify(event.data) : event.data;
+      logToConsole(`[Received reply]: ${dataStr}`);
+    });
+
+    function logToConsole(msg) {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logsContainer.appendChild(entry);
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+  </script>
+</body>
+</html>
