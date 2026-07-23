@@ -198,7 +198,7 @@
         // Keep as raw string if not JSON
       }
 
-      window.parent..postMessage(payload, targetOrigin);
+      window.parent.postMessage(payload, targetOrigin);
       logToConsole(`[Sent]: ${typeof payload === 'object' ? JSON.stringify(payload) : payload}`);
     });
 
