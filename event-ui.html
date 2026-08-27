@@ -42,7 +42,7 @@
       letter-spacing: 0.5px;
       color: #5e6c84;
     }
-    input[type="text"], textarea {
+    input[type="text"], textarea, select {
       width: 100%;
       padding: 10px;
       border: 1px solid #dfe1e6;
@@ -54,7 +54,11 @@
       resize: vertical;
       min-height: 100px;
     }
-    input:focus, textarea:focus {
+    select {
+      background-color: #fff;
+      min-height: 42px;
+    }
+    input:focus, textarea:focus, select:focus {
       outline: none;
       border-color: #0052cc;
       box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.2);
@@ -114,6 +118,15 @@
       </div>
 
       <div>
+        <label for="sampleSelect">Sample Messages</label>
+        <select id="sampleSelect">
+          <option value="">-- Select a sample --</option>
+          <option value="functionalLocationQuickView">Functional Location Quick View</option>
+          <option value="refreshUI">Refresh UI</option>
+        </select>
+      </div>
+
+      <div>
         <label for="messageInput">Message Payload (String or JSON)</label>
         <textarea id="messageInput" placeholder='{"type": "INIT", "data": "hello"}'>{"type": "GREETING", "payload": "Hello from parent!"}</textarea>
       </div>
@@ -136,10 +149,32 @@
     const iframe = document.getElementById('targetIframe');
     const iframeUrlInput = document.getElementById('iframeUrl');
     const targetOriginInput = document.getElementById('targetOrigin');
+    const sampleSelect = document.getElementById('sampleSelect');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
     const loadUrlBtn = document.getElementById('loadUrlBtn');
     const logsContainer = document.getElementById('logs');
+
+    const messageSamples = {
+      functionalLocationQuickView: {
+        operation: 'navigation',
+        params: {
+          objectKey: '8b2232f8-4c6a-4b91-833d-ea9970933c4c',
+          routingKey: 'functionalLocation',
+          viewType: 'quickview'
+        }
+      },
+      refreshUI: {
+        event: 'refreshUI',
+        operation: 'triggerMashupEvent'
+      }
+    };
+
+    sampleSelect.addEventListener('change', () => {
+      const selectedSample = messageSamples[sampleSelect.value];
+      if (!selectedSample) return;
+      messageInput.value = JSON.stringify(selectedSample, null, 2);
+    });
 
     // Default mock child document when using about:blank
     const defaultMockChildHTML = `
